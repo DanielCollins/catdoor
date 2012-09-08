@@ -68,7 +68,31 @@ void wait_timer(unsigned long timeout)
 
 int wait_closed_or_obstructed()
 {
-  lol;
+  const unsigned int period = 26; // 1 / (38KHz) in microseconds
+  const float duty = 0.3;         // 30% duty cycle
+  const unsigned int delay1 = period * duty;
+  const unsigned int delay2 = period - delay1;
+  
+  digitalWrite(PIN_ENABLE_SHUT_DETECTION, HIGH);
+
+  while (1)
+  {
+    digitalWrite(PIN_IR_EMIT, HIGH);
+    delayMicroseconds(delay1);
+    digitalWrite(PIN_IR_EMIT, LOW);
+    delayMicroseconds(delay2);
+
+    if (digitalRead(PIN_DOOR_SHUT_DETECT) == HIGH)
+    {
+      digitalWrite(PIN_ENABLE_SHUT_DETECTION, LOW);
+      return CLOSED;
+    }
+    if (digitalRead(PIN_IR_DETECT) == HIGH)
+    {
+      digitalWrite(PIN_ENABLE_SHUT_DETECTION, LOW);
+      return OBSTRUCTED;
+    }
+  }
 }
 
 // system control state machine
@@ -137,6 +161,12 @@ void setup()
   pinMode(PIN_DOOR_OPEN_DETECT, INPUT);
 
   pinMode(PIN_MOTION_DETECT, INPUT);
+
+  pinMode(PIN_ENABLE_SHUT_DETECTION, OUTPUT);
+  pinMode(PIN_DOOR_SHUT_DETECT, INPUT);
+
+  pinMode(PIN_IR_EMIT, output);
+  pinMode(PIN_IR_DETECT, input);
 
   // make sure door moves to closed position on system start
   state = CLOSING;
