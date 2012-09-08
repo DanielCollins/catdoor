@@ -1,3 +1,6 @@
+#include <string.h>
+#include <SoftwareSerial.h>
+
 // timing constants
 #define SECONDS(X) ((X) * 1000)
 
@@ -26,6 +29,9 @@
 
 // system interface
 
+SoftwareSerial RFID = SoftwareSerial(PIN_RFID_RX, PIN_RFID_TX);
+char tag[13] = "AAAAAAAAAAAA";
+
 void motion_wait()
 {
   while (digitalRead(PIN_MOTION_DETECT) != LOW) delay(100);
@@ -33,7 +39,49 @@ void motion_wait()
 
 int wait_id_or_timeout(unsigned long timeout)
 {
-  lol;
+  int val = 0;
+  int bytesread = 0;
+  int i;
+  int expire_time = millis() + timeout;
+  char code[13];
+
+  RFID.begin(9600);
+
+  while (millis() < expire_time)
+  {
+    i = 0;
+    while (RFID.available > 0 && bytesread < 12 && i < 24)
+    {
+      val = RFID.read();
+
+      if (val == 3)
+        break;
+
+      if (val == 2)
+        continue;
+
+      code[bytesread++] = val;
+      code[bytesread] = '\0';
+
+      if (bytesread == 12)
+      {
+        if (!strcmp(code, tag))
+        {
+          RFID.end();
+          return IDENTIFIED;
+        }
+        else
+          lolwut;
+      }
+
+      ++i;        
+    }
+
+    delay(100);
+    
+  }
+  RFID.end();
+  return TIMED_OUT;
 }
 
 void door_open()
@@ -167,6 +215,9 @@ void setup()
 
   pinMode(PIN_IR_EMIT, output);
   pinMode(PIN_IR_DETECT, input);
+
+  pinMode(PIN_RFID_RX, INPUT);
+  pinMode(PIN_RFID_TX, OUTPUT);
 
   // make sure door moves to closed position on system start
   state = CLOSING;
