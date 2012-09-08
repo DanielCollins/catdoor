@@ -28,7 +28,7 @@
 
 void motion_wait()
 {
-  while (digitalRead(PIN_MOTION_DETECT) != HIGH) delay(100);
+  while (digitalRead(PIN_MOTION_DETECT) != LOW) delay(100);
 }
 
 int wait_id_or_timeout(unsigned long timeout)
