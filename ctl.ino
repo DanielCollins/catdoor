@@ -213,8 +213,8 @@ void setup()
   pinMode(PIN_ENABLE_SHUT_DETECTION, OUTPUT);
   pinMode(PIN_DOOR_SHUT_DETECT, INPUT);
 
-  pinMode(PIN_IR_EMIT, output);
-  pinMode(PIN_IR_DETECT, input);
+  pinMode(PIN_IR_EMIT, OUTPUT);
+  pinMode(PIN_IR_DETECT, INPUT);
 
   pinMode(PIN_RFID_RX, INPUT);
   pinMode(PIN_RFID_TX, OUTPUT);
