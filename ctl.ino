@@ -15,7 +15,7 @@
 #define PIN_ENABLE_SHUT_DETECTION       6
 #define PIN_DOOR_SHUT_DETECT            11
 #define PIN_IR_EMIT			12  // operate @ 38Khz, ~30% duty
-#define PIN_IR_DETECT                   13  // active high??
+#define PIN_IR_DETECT                   13 
 #define PIN_MOTION_DETECT               14  // n.b. active low
 #define PIN_MOTOR_FORWARD		15
 #define PIN_MOTOR_REVERSE		16
