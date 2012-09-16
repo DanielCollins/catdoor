@@ -29,8 +29,174 @@
 
 // system interface
 
-SoftwareSerial RFID = SoftwareSerial(PIN_RFID_RX, PIN_RFID_TX);
-char tag[13] = "AAAAAAAAAAAA";
+SoftwareSerial rfid(PIN_RFID_RX, PIN_RFID_TX);
+
+void check_for_notag(void);
+void rfid_halt(void);
+void parse(void);
+void print_serial(void);
+void read_serial(void);
+void rfid_seek(void);
+void set_flag(void);
+
+uint8_t tag[] = { 0x87, 0x9D, 0x64, 0x02 };
+
+enum RfidCmd
+{
+  RESET    = 0x80,
+  FIRMWARE = 0x81,
+  SEEK     = 0x82,
+  POWER    = 0x90,
+  HALT     = 0x93
+};
+
+void rfid_send_frame(uint8_t cmd, uint8_t *data, uint8_t length)
+{
+  uint8_t payload_length = length + 1;
+  uint8_t checksum = 0x00 + payload_length + cmd;
+  rfid.write((uint8_t)0xFF);			// header
+  rfid.write((uint8_t)0x00);			// reserved, unimplimented
+  rfid.write((uint8_t)payload_length);		// payload byte count including cmd
+  rfid.write((uint8_t)cmd);              	// command
+  for (uint8_t i = 0; i < length; ++i)	// data
+  {
+    rfid.write(data[i]);
+    checksum += data[i];
+  }
+  rfid.write((uint8_t)checksum);			// checksum ends packet
+}
+
+void rfid_halt(void)
+{
+  rfid_send_frame(HALT, 0, 0);
+}
+
+void rfid_seek()
+{
+  rfid_send_frame(SEEK, 0, 0);
+  delay(10);
+}
+
+bool rfid_timeout_read(unsigned long expire_time, uint8_t *out)
+{
+  while (millis() < expire_time)
+  {
+    if (rfid.available() > 0)
+    {
+      *out = rfid.read();
+      return true;
+    }
+
+    delay(20);
+  }
+
+  return false;
+}
+
+bool rfid_read_seek_response(unsigned long expire_time)
+{
+  uint8_t b;
+
+  // ignore everything up to packet frame header
+  while (1)
+  {
+    if (!rfid_timeout_read(expire_time, &b))
+      return false;
+    if (b == 0xFF)
+      break;
+   }
+
+  // require rest of packet header
+  if (!rfid_timeout_read(expire_time, &b) || b != 0x00)
+    return false;
+  
+  if (!rfid_timeout_read(expire_time, &b) || b != 0x02)
+    return false;
+
+  // require seek command reply
+  if (!rfid_timeout_read(expire_time, &b) || b != SEEK)
+    return false;
+  
+  // require success
+  if (!rfid_timeout_read(expire_time, &b) || b != 0x4C)
+    return false;
+
+  // require checksum
+  if (!rfid_timeout_read(expire_time, &b) || b != 0xD0)
+    return false;
+
+  return true;  
+}
+
+bool rfid_cmp_tag_packet(unsigned long expire_time)
+{
+  uint8_t l, b;
+
+  // ignore everything up to packet frame header
+  while (1)
+  {
+    if (!rfid_timeout_read(expire_time, &b))
+      return false;
+    if (b == 0xFF)
+      break;
+   }
+
+  // require reserved byte
+  if (!rfid_timeout_read(expire_time, &b) || b != 0x00)
+    return false;                             // bad packet frame
+
+  // read payload length. needs to be a sensible tag length
+  if (!rfid_timeout_read(expire_time, &b) || (b != 6 && b != 9))
+    return false;
+
+  // ought to be a reply to a seek command
+  if (!rfid_timeout_read(expire_time, &b) || b != SEEK)
+    return false;
+
+  // ignore "tag type" byte
+  if (!rfid_timeout_read(expire_time, &b))
+    return false;
+
+  for (int i = l - 3; i >= 0; --i)
+  {
+    if (!rfid_timeout_read(expire_time, &b))
+      return false;
+    if (tag[i] != b)
+    {
+      Serial.print(tag[i], HEX);
+      Serial.print(" != ");
+      Serial.println(b, HEX);
+      return false;
+    }
+  }
+  return true;
+}
+
+bool rfid_do_id(unsigned long expire_time)
+{
+  rfid.begin(19200);
+  delay(10);
+
+  while (millis() < expire_time)
+  {
+    rfid_seek();
+    delay(10);
+
+    if (!rfid_read_seek_response(expire_time))
+    {
+      rfid.end();
+      return false;
+    }
+
+    if (rfid_cmp_tag_packet(expire_time))
+    {
+      rfid.end();
+      return true;
+    }
+  }
+  rfid.end();
+  return false;
+}
 
 void motion_wait()
 {
@@ -39,48 +205,8 @@ void motion_wait()
 
 int wait_id_or_timeout(unsigned long timeout)
 {
-  int val = 0;
-  int bytesread = 0;
-  int i;
-  int expire_time = millis() + timeout;
-  char code[13];
-
-  RFID.begin(9600);
-
-  while (millis() < expire_time)
-  {
-    i = 0;
-    while (RFID.available > 0 && bytesread < 12 && i < 24)
-    {
-      val = RFID.read();
-
-      if (val == 3)
-        break;
-
-      if (val == 2)
-        continue;
-
-      code[bytesread++] = val;
-      code[bytesread] = '\0';
-
-      if (bytesread == 12)
-      {
-        if (!strcmp(code, tag))
-        {
-          RFID.end();
-          return IDENTIFIED;
-        }
-        else
-          lolwut;
-      }
-
-      ++i;        
-    }
-
-    delay(100);
-    
-  }
-  RFID.end();
+  if (rfid_do_id(millis() + timeout))
+    return IDENTIFIED;
   return TIMED_OUT;
 }
 
@@ -201,6 +327,8 @@ void loop()
 // main
 void setup()
 {
+  Serial.begin(9600);
+
   pinMode(PIN_MOTOR_FORWARD, OUTPUT);
   pinMode(PIN_MOTOR_REVERSE, OUTPUT);
   pinMode(PIN_ENABLE_MOTOR, OUTPUT);
