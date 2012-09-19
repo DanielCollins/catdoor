@@ -4,22 +4,22 @@
 // timing constants
 #define SECONDS(X) ((X) * 1000)
 
-#define IDENTIFY_TIMEOUT SECONDS(10)
-#define STAY_OPEN        SECONDS(10)
+#define IDENTIFY_TIMEOUT SECONDS(20)
+#define STAY_OPEN        SECONDS(5)
 
 // pin numbers
-#define PIN_RFID_TX 			2
-#define PIN_RFID_RX 			3
-#define PIN_ENABLE_OPEN_DETECTION	4
-#define PIN_DOOR_OPEN_DETECT            5
-#define PIN_ENABLE_SHUT_DETECTION       6
-#define PIN_DOOR_SHUT_DETECT            11
-#define PIN_IR_EMIT			12  // operate @ 38Khz, ~30% duty
-#define PIN_IR_DETECT                   13 
-#define PIN_MOTION_DETECT               14  // n.b. active low
-#define PIN_MOTOR_FORWARD		15
-#define PIN_MOTOR_REVERSE		16
-#define PIN_ENABLE_MOTOR                17
+#define PIN_RFID_TX 			12
+#define PIN_RFID_RX 			13
+#define PIN_ENABLE_OPEN_DETECTION	2
+#define PIN_DOOR_OPEN_DETECT            3
+#define PIN_ENABLE_SHUT_DETECTION       4
+#define PIN_DOOR_SHUT_DETECT            5
+#define PIN_IR_EMIT			6  // operate @ 38Khz, ~30% duty
+#define PIN_IR_DETECT                   7 
+#define PIN_MOTION_DETECT               8  // n.b. active low
+#define PIN_MOTOR_FORWARD		9
+#define PIN_MOTOR_REVERSE		10
+#define PIN_ENABLE_MOTOR                11
 
 // sensor state signalling values
 #define TIMED_OUT  1
@@ -239,18 +239,34 @@ void wait_door_open()
 // block timeout milliseconds
 void wait_timer(unsigned long timeout)
 {
+  Serial.println("waiting for timer");
   delay(timeout);
 }
 
 int wait_closed_or_obstructed()
 {
-  const unsigned int period = 19; // 38KHz found by trial and error 
+  const unsigned int period = 10; // 38KHz found by trial and error 
   const float duty = 0.3;         // 30% duty cycle
   const unsigned int delay1 = period * duty;
   const unsigned int delay2 = period - delay1;
+  int i;
   
   digitalWrite(PIN_ENABLE_SHUT_DETECTION, HIGH);
 
+  Serial.println("waiting for door to be closed or obstructed");
+
+  for (i = 0; i < 10000; ++i)
+  {
+    digitalWrite(PIN_IR_EMIT, HIGH);
+    delayMicroseconds(delay1);
+    digitalWrite(PIN_IR_EMIT, LOW);
+    delayMicroseconds(delay2);
+    
+    // for timing
+    if (digitalRead(PIN_DOOR_SHUT_DETECT) == HIGH);
+    if (digitalRead(PIN_IR_DETECT) == HIGH);
+  }
+  
   while (1)
   {
     digitalWrite(PIN_IR_EMIT, HIGH);
@@ -260,11 +276,13 @@ int wait_closed_or_obstructed()
 
     if (digitalRead(PIN_DOOR_SHUT_DETECT) == HIGH)
     {
+      Serial.println("door closed!");
       digitalWrite(PIN_ENABLE_SHUT_DETECTION, LOW);
       return CLOSED;
     }
     if (digitalRead(PIN_IR_DETECT) == HIGH)
     {
+      Serial.println("obstruction detetced!");
       digitalWrite(PIN_ENABLE_SHUT_DETECTION, LOW);
       return OBSTRUCTED;
     }
@@ -291,31 +309,36 @@ void loop()
   switch (state)
   {
     case WAIT:
+      Serial.println("state - WAIT. waiting for motion");
       motion_wait();
       state = IDENTIFYING;
       return;
     case IDENTIFYING:
+      Serial.println("state - IDENTIFYING. waiting for rfid/timeout");
       if (wait_id_or_timeout(IDENTIFY_TIMEOUT) == TIMED_OUT)
         state = WAIT;
       else
         state = OPENING;
       return;
     case OPENING:
+      Serial.println("state - OPENING. open door, wait for opened door");
       door_open();
       wait_door_open();
       door_stop();
       state = ENTERING;
       return;
     case ENTERING:
+       Serial.println("state - ENTERNG. stay open, wait for timer");
        wait_timer(STAY_OPEN);
        state = CLOSING;
     case CLOSING:
     default:
+       Serial.println("state - CLOSING. closing door, waiting for door to be closed or obstucted");
        door_close();
        if (wait_closed_or_obstructed() == OBSTRUCTED)
        {
          door_stop();
-         state = ENTERING;
+         state = OPENING;
        }
        else
        {
@@ -330,7 +353,7 @@ void loop()
 void setup()
 {
   Serial.begin(9600);
-
+  Serial.println("program running. revision 1");
   pinMode(PIN_MOTOR_FORWARD, OUTPUT);
   pinMode(PIN_MOTOR_REVERSE, OUTPUT);
   pinMode(PIN_ENABLE_MOTOR, OUTPUT);
@@ -351,5 +374,8 @@ void setup()
 
   // make sure door moves to closed position on system start
   state = CLOSING;
+  
+  Serial.println("done setup, entering mainloop");
 }
+
 
