@@ -328,7 +328,7 @@ void loop()
        if (wait_closed_or_obstructed() == OBSTRUCTED)
        {
          door_stop();
-         state = ENTERING;
+         state = OPENING;
        }
        else
        {
