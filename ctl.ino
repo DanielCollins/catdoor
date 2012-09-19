@@ -66,6 +66,16 @@ void rfid_send_frame(uint8_t cmd, uint8_t *data, uint8_t length)
   rfid.write((uint8_t)checksum);			// checksum ends packet
 }
 
+void rfid_power(bool on)
+{
+  uint8_t s;
+  if (on)
+    s = 0x01;
+  else
+    s = 0x00;
+  rfid_send_frame(POWER, &s, 1); 
+}
+
 void rfid_halt(void)
 {
   rfid_send_frame(HALT, 0, 0);
@@ -128,6 +138,40 @@ bool rfid_read_seek_response(unsigned long expire_time)
   return true;  
 }
 
+bool rfid_read_power_response()
+{
+  uint8_t b;
+
+    while (1)                                                                      
+  {                                                                              
+    if (!rfid_timeout_read(expire_time, &b))                                     
+      return false;                                                              
+    if (b == 0xFF)                                                               
+      break;                                                                     
+   }                                                                             
+                                                                                 
+  // require rest of packet header                                               
+  if (!rfid_timeout_read(expire_time, &b) || b != 0x00)                          
+    return false;                                                                
+                                                                                 
+  if (!rfid_timeout_read(expire_time, &b) || b != 0x02)                          
+    return false;                                                                
+                                                                                 
+  // require seek command reply                                                  
+  if (!rfid_timeout_read(expire_time, &b) || b != POWER)                          
+    return false;  
+
+  // require argument
+  if (!rfid_timeout_read(expire_time, &b) || (b != 0x00 && b != 0x01))
+    return false;
+
+  // require checksum
+  if (!rfid_timeout_read(expire_time, &b) || (b != 0x93 && b != 0x92))           
+    return false; 
+
+  return true;                                                     
+}
+
 bool rfid_cmp_tag_packet(unsigned long expire_time)
 {
   uint8_t l, b;
@@ -177,6 +221,14 @@ bool rfid_do_id(unsigned long expire_time)
   rfid.begin(19200);
   delay(10);
 
+  rfid_power(true);
+  delay(10);
+  if (!rfid_read_power_response())
+  {
+    rfid.end();
+    return false;
+  }
+
   while (millis() < expire_time)
   {
     rfid_seek();
@@ -184,16 +236,25 @@ bool rfid_do_id(unsigned long expire_time)
 
     if (!rfid_read_seek_response(expire_time))
     {
+      rfid_power(false);                                                              
+      delay(10);                                                                     
+      rfid_read_power_response();   
       rfid.end();
       return false;
     }
 
     if (rfid_cmp_tag_packet(expire_time))
     {
+      rfid_power(false);                                                              
+      delay(10);                                                                     
+      rfid_read_power_response();   
       rfid.end();
       return true;
     }
   }
+  rfid_power(false);                                                              
+  delay(10);                                                                     
+  rfid_read_power_response();   
   rfid.end();
   return false;
 }
