@@ -244,7 +244,7 @@ void wait_timer(unsigned long timeout)
 
 int wait_closed_or_obstructed()
 {
-  const unsigned int period = 19; // 38KHz found by trial and error 
+  const unsigned int period = 10; // 38KHz found by trial and error 
   const float duty = 0.3;         // 30% duty cycle
   const unsigned int delay1 = period * duty;
   const unsigned int delay2 = period - delay1;
