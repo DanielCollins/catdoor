@@ -251,6 +251,19 @@ int wait_closed_or_obstructed()
   
   digitalWrite(PIN_ENABLE_SHUT_DETECTION, HIGH);
 
+  // run ir emitter for 10000 periods so detector can find signal
+  for (i = 0; i < 10000; ++i)
+  {
+    digitalWrite(PIN_IR_EMIT, HIGH);
+    delayMicroseconds(delay1);
+    digitalWrite(PIN_IR_EMIT, LOW);
+    delayMicroseconds(delay2);
+
+    // calls to make timing identical to the following loop
+    if (digitalRead(PIN_DOOR_SHUT_DETECT) == HIGH);
+    if (digitalRead(PIN_IR_DETECT) == HIGH);
+  }
+
   while (1)
   {
     digitalWrite(PIN_IR_EMIT, HIGH);
