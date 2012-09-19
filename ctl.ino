@@ -138,7 +138,7 @@ bool rfid_read_seek_response(unsigned long expire_time)
   return true;  
 }
 
-bool rfid_read_power_response()
+bool rfid_read_power_response(unsigned long expire_time)
 {
   uint8_t b;
 
@@ -223,7 +223,7 @@ bool rfid_do_id(unsigned long expire_time)
 
   rfid_power(true);
   delay(10);
-  if (!rfid_read_power_response())
+  if (!rfid_read_power_response(expire_time))
   {
     rfid.end();
     return false;
@@ -238,7 +238,7 @@ bool rfid_do_id(unsigned long expire_time)
     {
       rfid_power(false);                                                              
       delay(10);                                                                     
-      rfid_read_power_response();   
+      rfid_read_power_response(expire_time);   
       rfid.end();
       return false;
     }
@@ -247,14 +247,14 @@ bool rfid_do_id(unsigned long expire_time)
     {
       rfid_power(false);                                                              
       delay(10);                                                                     
-      rfid_read_power_response();   
+      rfid_read_power_response(expire_time);   
       rfid.end();
       return true;
     }
   }
   rfid_power(false);                                                              
   delay(10);                                                                     
-  rfid_read_power_response();   
+  rfid_read_power_response(expire_time);   
   rfid.end();
   return false;
 }
