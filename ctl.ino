@@ -309,6 +309,7 @@ int wait_closed_or_obstructed()
   const float duty = 0.3;         // 30% duty cycle
   const unsigned int delay1 = period * duty;
   const unsigned int delay2 = period - delay1;
+  int i;
   
   digitalWrite(PIN_ENABLE_SHUT_DETECTION, HIGH);
 
